@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { X, Folder } from 'lucide-react';
+import { X, Folder, Settings2 } from 'lucide-react';
 import { costingActions, useCostingStore } from '../../store/costingStore';
+import { CategoryModal } from '../categories/CategoryModal';
 
 interface GroupModalProps {
   isOpen: boolean;
@@ -15,7 +16,9 @@ export const GroupModal: React.FC<GroupModalProps> = ({
 }) => {
   const store = useCostingStore();
   const [name, setName] = useState('');
+  const [category, setCategory] = useState('Food & Beverage');
   const [description, setDescription] = useState('');
+  const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
 
   const editingGroup = editGroupId
     ? store.groups.find((g) => g.id === editGroupId)
@@ -24,9 +27,11 @@ export const GroupModal: React.FC<GroupModalProps> = ({
   useEffect(() => {
     if (editingGroup) {
       setName(editingGroup.name);
+      setCategory(editingGroup.category || 'Food & Beverage');
       setDescription(editingGroup.description || '');
     } else {
       setName('');
+      setCategory('Food & Beverage');
       setDescription('');
     }
   }, [editingGroup, isOpen]);
@@ -41,9 +46,9 @@ export const GroupModal: React.FC<GroupModalProps> = ({
     }
 
     if (editingGroup) {
-      costingActions.updateGroup(editingGroup.id, name, description);
+      costingActions.updateGroup(editingGroup.id, name, category, description);
     } else {
-      costingActions.addGroup(name, description);
+      costingActions.addGroup(name, category, description);
     }
 
     onClose();
@@ -78,6 +83,38 @@ export const GroupModal: React.FC<GroupModalProps> = ({
           </div>
 
           <div>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block font-semibold text-slate-700">Category</label>
+              <button
+                type="button"
+                onClick={() => setIsCategoryModalOpen(true)}
+                className="text-[11px] text-amber-600 hover:text-amber-700 flex items-center gap-1 font-medium"
+              >
+                <Settings2 className="w-3 h-3" />
+                Manage Categories
+              </button>
+            </div>
+            <select
+              value={category}
+              onChange={(e) => {
+                if (e.target.value === '__NEW__') {
+                  setIsCategoryModalOpen(true);
+                } else {
+                  setCategory(e.target.value);
+                }
+              }}
+              className="w-full bg-slate-50 border border-slate-200 rounded px-3 py-2 text-slate-800 focus:bg-white focus:ring-1 focus:ring-amber-500 focus:outline-none"
+            >
+              {store.categories.map((c) => (
+                <option key={c.id} value={c.name}>
+                  {c.name}
+                </option>
+              ))}
+              <option value="__NEW__">+ Add Custom Category...</option>
+            </select>
+          </div>
+
+          <div>
             <label className="block font-semibold text-slate-700 mb-1">Description (Optional)</label>
             <textarea
               rows={3}
@@ -105,6 +142,12 @@ export const GroupModal: React.FC<GroupModalProps> = ({
           </div>
         </form>
       </div>
+
+      <CategoryModal
+        isOpen={isCategoryModalOpen}
+        onClose={() => setIsCategoryModalOpen(false)}
+        onSelectCategory={(catName) => setCategory(catName)}
+      />
     </div>
   );
 };

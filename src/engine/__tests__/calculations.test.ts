@@ -200,6 +200,10 @@ describe('HPP Engine Tests - Prompt Validation', () => {
       laborTotal: 0,
       overheadTotal: 0,
       otherExpensesTotal: 0,
+      rawMaterialsCostPerUnit: 7250,
+      packagingCostPerUnit: 0,
+      laborCostPerUnit: 0,
+      overheadCostPerUnit: 0,
       totalProductionCost: 3625000,
       unitHpp: 7250,
       unitHppExcludingIndirect: 7250,
@@ -218,6 +222,10 @@ describe('HPP Engine Tests - Prompt Validation', () => {
       laborTotal: 0,
       overheadTotal: 0,
       otherExpensesTotal: 0,
+      rawMaterialsCostPerUnit: 14500,
+      packagingCostPerUnit: 0,
+      laborCostPerUnit: 0,
+      overheadCostPerUnit: 0,
       totalProductionCost: 7250000,
       unitHpp: 14500,
       unitHppExcludingIndirect: 14500,
@@ -317,5 +325,84 @@ describe('HPP Engine Tests - Prompt Validation', () => {
     expect(batch.totalProductionCost).toBe(3625000);
     expect(batch.unitHpp).toBe(7250);
     expect(updatedMasterMaterial.purchasePrice).toBe(31000);
+  });
+
+  it('TEST G — User Revision Scenario: Trovia Core 250g (Batch 500 pcs, Kg-to-Gram auto-conversion)', () => {
+    // Requirements from revision prompt:
+    // Batch Quantity: 500 pcs
+    // Coconut sugar: Rp29,000/Kg, Usage per product: 250g
+    // System auto-converts: Rp29,000 / 1000 = Rp29/g
+    // Cost per product: 250 * 29 = Rp7,250
+    // Total batch cost: 7,250 * 500 = Rp3,625,000
+    // Total batch material needed: 250 * 500 = 125,000g = 125 kg
+    // Packaging pouch: Rp5,500/pcs, Usage: 1 pcs
+    // Cost per product: Rp5,500, Total batch: Rp2,750,000
+    // Total HPP per product = 7,250 + 5,500 = Rp12,750
+    // Total Batch Production Budget = Rp6,375,000
+
+    const coconutSugar: BomComponent = {
+      id: 'bom-trovia-sugar',
+      variantId: 'var-trovia-250',
+      name: 'Organic Coconut Sugar',
+      category: 'raw_materials',
+      usagePerProduct: 250,
+      usageUnit: 'g',
+      purchasePrice: 29000,
+      purchaseUnit: 'kg',
+      quantityRequired: 250,
+      unit: 'g',
+      unitPrice: 29,
+      costBasis: 'per_finished_unit',
+      status: 'confirmed',
+    };
+
+    const packagingPouch: BomComponent = {
+      id: 'bom-trovia-pouch',
+      variantId: 'var-trovia-250',
+      name: 'Standing Kraft Pouch 250g',
+      category: 'packaging',
+      usagePerProduct: 1,
+      usageUnit: 'pcs',
+      purchasePrice: 5500,
+      purchaseUnit: 'pcs',
+      quantityRequired: 1,
+      unit: 'pcs',
+      unitPrice: 5500,
+      costBasis: 'per_finished_unit',
+      status: 'confirmed',
+    };
+
+    const variant: ProductVariant = {
+      id: 'var-trovia-250',
+      productId: 'prod-trovia-core',
+      name: '250g Pouch',
+      sku: 'TRV-COR-250',
+      sizeWeightVolume: 250,
+      measurementUnit: 'g',
+      plannedQuantity: 500,
+      actualQuantity: 500,
+      wastagePercentage: 0,
+      defectiveQuantity: 0,
+      reworkQuantity: 0,
+      yieldPercentage: 100,
+      createdAt: '',
+      updatedAt: '',
+    };
+
+    const sugarCost = calculateBomComponentCost(coconutSugar, 500);
+    expect(sugarCost.unitPrice).toBe(29);
+    expect(sugarCost.costPerFinishedUnit).toBe(7250);
+    expect(sugarCost.totalCost).toBe(3625000);
+    expect(sugarCost.totalQuantityRequired).toBe(125000); // 125 kg
+
+    const pouchCost = calculateBomComponentCost(packagingPouch, 500);
+    expect(pouchCost.costPerFinishedUnit).toBe(5500);
+    expect(pouchCost.totalCost).toBe(2750000);
+
+    const summary = calculateProductCostSummary(variant, [coconutSugar, packagingPouch], [], []);
+    expect(summary.rawMaterialsCostPerUnit).toBe(7250);
+    expect(summary.packagingCostPerUnit).toBe(5500);
+    expect(summary.unitHpp).toBe(12750); // Rp12,750 per product
+    expect(summary.totalProductionCost).toBe(6375000); // Rp6,375,000 total batch budget
   });
 });

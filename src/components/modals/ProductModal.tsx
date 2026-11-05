@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { X, Package } from 'lucide-react';
+import { X, Package, Settings2 } from 'lucide-react';
 import { costingActions, useCostingStore } from '../../store/costingStore';
+import { CategoryModal } from '../categories/CategoryModal';
 
 interface ProductModalProps {
   isOpen: boolean;
@@ -18,6 +19,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
   const [name, setName] = useState('');
   const [code, setCode] = useState('');
   const [category, setCategory] = useState('Food & Beverage');
+  const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
   const [groupId, setGroupId] = useState<string | null>(initialGroupId);
   const [description, setDescription] = useState('');
   const [variantName, setVariantName] = useState('Standard');
@@ -85,14 +87,35 @@ export const ProductModal: React.FC<ProductModalProps> = ({
             </div>
 
             <div>
-              <label className="block font-semibold text-slate-700 mb-1">Category</label>
-              <input
-                type="text"
-                placeholder="e.g. Food & Beverage"
+              <div className="flex items-center justify-between mb-1">
+                <label className="block font-semibold text-slate-700">Category</label>
+                <button
+                  type="button"
+                  onClick={() => setIsCategoryModalOpen(true)}
+                  className="text-[10px] text-sky-600 hover:text-sky-700 flex items-center gap-0.5 font-medium"
+                >
+                  <Settings2 className="w-2.5 h-2.5" />
+                  Manage
+                </button>
+              </div>
+              <select
                 value={category}
-                onChange={(e) => setCategory(e.target.value)}
+                onChange={(e) => {
+                  if (e.target.value === '__NEW__') {
+                    setIsCategoryModalOpen(true);
+                  } else {
+                    setCategory(e.target.value);
+                  }
+                }}
                 className="w-full bg-slate-50 border border-slate-200 rounded px-3 py-2 text-slate-800 focus:bg-white focus:ring-1 focus:ring-sky-500 focus:outline-none"
-              />
+              >
+                {store.categories.map((c) => (
+                  <option key={c.id} value={c.name}>
+                    {c.name}
+                  </option>
+                ))}
+                <option value="__NEW__">+ Add Custom Category...</option>
+              </select>
             </div>
           </div>
 
@@ -167,6 +190,12 @@ export const ProductModal: React.FC<ProductModalProps> = ({
           </div>
         </form>
       </div>
+
+      <CategoryModal
+        isOpen={isCategoryModalOpen}
+        onClose={() => setIsCategoryModalOpen(false)}
+        onSelectCategory={(catName) => setCategory(catName)}
+      />
     </div>
   );
 };

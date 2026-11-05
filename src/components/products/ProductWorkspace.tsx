@@ -33,6 +33,7 @@ import {
 } from '../../engine/calculations';
 import { formatCurrencyValue, generateCostingPdfReport } from '../../engine/exportPdf';
 import { generateCostingExcelWorkbook } from '../../engine/exportExcel';
+import { PURCHASE_UNITS, USAGE_UNITS } from '../../engine/unitConversions';
 
 interface ProductWorkspaceProps {
   productId: string;
@@ -109,11 +110,15 @@ export const ProductWorkspace: React.FC<ProductWorkspaceProps> = ({
   const handleAddBomItem = (category: CostComponentCategory = 'raw_materials') => {
     costingActions.addBomComponent({
       variantId: activeVariant.id,
-      name: category === 'packaging' ? 'Packaging Box/Pouch' : 'Raw Material Ingredient',
+      name: category === 'packaging' ? 'Pouch / Packaging Box' : 'Raw Ingredient',
       category,
       materialId: null,
-      quantityRequired: 1,
-      unit: 'pcs',
+      usagePerProduct: category === 'packaging' ? 1 : 100,
+      usageUnit: category === 'packaging' ? 'pcs' : 'g',
+      purchasePrice: 0,
+      purchaseUnit: category === 'packaging' ? 'pcs' : 'kg',
+      quantityRequired: category === 'packaging' ? 1 : 100,
+      unit: category === 'packaging' ? 'pcs' : 'g',
       unitPrice: 0,
       costBasis: 'per_finished_unit',
       status: 'confirmed',
@@ -281,53 +286,86 @@ export const ProductWorkspace: React.FC<ProductWorkspaceProps> = ({
       </div>
 
       {/* 2. Hero HPP Summary Card (Simple, bold, unmistakable) */}
-      <div className="bg-gradient-to-r from-sky-50 to-blue-50 border border-sky-200/80 rounded-xl p-5 shadow-xs flex flex-wrap items-center justify-between gap-4">
-        <div className="flex items-center gap-6 flex-wrap">
-          <div>
-            <div className="text-[11px] font-bold text-sky-800 uppercase tracking-wider">
-              Harga Pokok Produksi (HPP)
-            </div>
-            <div className="text-3xl font-black text-slate-900 mt-0.5">
-              {formatCurrencyValue(summary.unitHpp, store.currency)}
-              <span className="text-xs font-semibold text-slate-500 ml-1.5">/ finished unit</span>
-            </div>
-            {activeVariant.sizeWeightVolume && (
-              <div className="text-[11px] text-sky-700 font-medium mt-0.5">
-                {formatCurrencyValue(summary.costPerMeasurementUnit, store.currency)} per {activeVariant.measurementUnit}
+      <div className="bg-gradient-to-r from-sky-50 via-white to-blue-50 border border-sky-200/90 rounded-xl p-5 shadow-xs flex flex-wrap items-center justify-between gap-5">
+        <div className="space-y-2">
+          <div className="flex items-center gap-6 flex-wrap">
+            <div>
+              <div className="text-[11px] font-bold text-sky-800 uppercase tracking-wider flex items-center gap-1.5">
+                <span>Harga Pokok Produksi (HPP)</span>
+                <span className="text-[10px] bg-sky-100 text-sky-800 px-2 py-0.5 rounded-full font-semibold">
+                  Per Finished Product
+                </span>
               </div>
-            )}
+              <div className="text-3xl font-black text-slate-900 mt-1">
+                {formatCurrencyValue(summary.unitHpp, store.currency)}
+                <span className="text-xs font-semibold text-slate-500 ml-1.5">/ {activeVariant.measurementUnit || 'pcs'}</span>
+              </div>
+              {activeVariant.sizeWeightVolume && (
+                <div className="text-[11px] text-sky-700 font-medium mt-0.5">
+                  {formatCurrencyValue(summary.costPerMeasurementUnit, store.currency)} per {activeVariant.measurementUnit}
+                </div>
+              )}
+            </div>
+
+            <div className="h-12 w-px bg-slate-200 hidden md:block" />
+
+            <div>
+              <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                Total Production Budget (Batch)
+              </div>
+              <div className="text-xl font-black text-slate-900 mt-1">
+                {formatCurrencyValue(summary.totalProductionCost, store.currency)}
+              </div>
+              <div className="text-[11px] text-slate-500">
+                For batch of <strong className="text-slate-800">{summary.actualFinishedQuantity.toLocaleString()}</strong> {activeVariant.measurementUnit || 'units'}
+              </div>
+            </div>
           </div>
 
-          <div className="h-10 w-px bg-sky-200 hidden md:block" />
-
-          <div>
-            <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
-              Total Production Budget
-            </div>
-            <div className="text-lg font-bold text-slate-800">
-              {formatCurrencyValue(summary.totalProductionCost, store.currency)}
-            </div>
-            <div className="text-[11px] text-slate-500">
-              For {summary.actualFinishedQuantity.toLocaleString()} {activeVariant.measurementUnit}
-            </div>
+          {/* Cost Breakdown Chips */}
+          <div className="flex items-center gap-2 flex-wrap pt-1 text-[11px]">
+            <span className="bg-sky-50 border border-sky-200 text-sky-900 px-2 py-0.5 rounded font-medium">
+              Materials: {formatCurrencyValue(summary.rawMaterialsCostPerUnit, store.currency)}
+            </span>
+            <span className="bg-amber-50 border border-amber-200 text-amber-900 px-2 py-0.5 rounded font-medium">
+              Packaging: {formatCurrencyValue(summary.packagingCostPerUnit, store.currency)}
+            </span>
+            {summary.laborCostPerUnit > 0 && (
+              <span className="bg-emerald-50 border border-emerald-200 text-emerald-900 px-2 py-0.5 rounded font-medium">
+                Labor: {formatCurrencyValue(summary.laborCostPerUnit, store.currency)}
+              </span>
+            )}
+            {summary.overheadCostPerUnit > 0 && (
+              <span className="bg-indigo-50 border border-indigo-200 text-indigo-900 px-2 py-0.5 rounded font-medium">
+                Overhead: {formatCurrencyValue(summary.overheadCostPerUnit, store.currency)}
+              </span>
+            )}
           </div>
         </div>
 
-        {/* Quick Batch Quantity Input */}
-        <div className="bg-white/90 border border-sky-200 rounded-lg p-2.5 flex items-center gap-3">
-          <div>
-            <label className="text-[10px] font-bold text-slate-500 uppercase block">
+        {/* Batch Quantity Input (Defined once per product batch) */}
+        <div className="bg-white border-2 border-sky-300 rounded-xl p-3 shadow-xs min-w-[210px]">
+          <div className="flex items-center justify-between mb-1">
+            <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block">
               Batch Quantity
             </label>
+            <span className="text-[10px] bg-slate-100 text-slate-600 font-semibold px-1.5 py-0.5 rounded">
+              Produced Units
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
             <input
               type="number"
               min="1"
               value={activeVariant.plannedQuantity || ''}
               onChange={(e) => handleTargetChange('plannedQuantity', parseFloat(e.target.value) || 0)}
-              className="w-24 text-sm font-bold text-slate-900 bg-transparent border-b border-slate-300 focus:border-sky-500 focus:outline-none"
+              className="w-28 text-lg font-black text-slate-900 bg-slate-50 border border-slate-200 rounded px-2.5 py-1 focus:bg-white focus:border-sky-500 focus:outline-none"
             />
+            <span className="text-xs text-slate-500 font-semibold">{activeVariant.measurementUnit || 'pcs'}</span>
           </div>
-          <span className="text-xs text-slate-400 font-medium">units</span>
+          <p className="text-[10px] text-slate-400 mt-1 leading-tight">
+            Sets target batch. Automatically multiplies all material usage and budget totals.
+          </p>
         </div>
       </div>
 
@@ -368,21 +406,26 @@ export const ProductWorkspace: React.FC<ProductWorkspaceProps> = ({
       {/* 4. Tab 1: Materials & Packaging (Clean Table) */}
       {activeTab === 'bom' && (
         <div className="bg-white border border-slate-200 rounded-xl shadow-xs overflow-hidden space-y-3 p-4">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">
-              Bill of Materials (BOM)
-            </span>
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <div>
+              <span className="text-xs font-bold text-slate-800 uppercase tracking-wider block">
+                Bill of Materials & Packaging
+              </span>
+              <span className="text-[11px] text-slate-500">
+                Input usage per finished product and purchase price in your supplier unit (e.g. Kg). System auto-converts to usage unit price.
+              </span>
+            </div>
             <div className="flex items-center gap-2">
               <button
                 onClick={() => handleAddBomItem('raw_materials')}
-                className="flex items-center gap-1 px-3 py-1 bg-sky-50 text-sky-700 hover:bg-sky-100 border border-sky-200 rounded-lg text-xs font-medium transition-colors"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-sky-50 text-sky-700 hover:bg-sky-100 border border-sky-200 rounded-lg text-xs font-semibold transition-colors shadow-2xs"
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span>+ Raw Material</span>
               </button>
               <button
                 onClick={() => handleAddBomItem('packaging')}
-                className="flex items-center gap-1 px-3 py-1 bg-amber-50 text-amber-800 hover:bg-amber-100 border border-amber-200 rounded-lg text-xs font-medium transition-colors"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 text-amber-800 hover:bg-amber-100 border border-amber-200 rounded-lg text-xs font-semibold transition-colors shadow-2xs"
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span>+ Packaging</span>
@@ -393,145 +436,206 @@ export const ProductWorkspace: React.FC<ProductWorkspaceProps> = ({
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
               <thead>
-                <tr className="bg-slate-50 text-slate-500 border-b border-slate-200 font-medium">
-                  <th className="py-2.5 px-3">Item Name</th>
-                  <th className="py-2.5 px-3">Category</th>
-                  <th className="py-2.5 px-3">Master Price Link</th>
-                  <th className="py-2.5 px-3 text-right">Consumption / Unit</th>
-                  <th className="py-2.5 px-3">Unit</th>
-                  <th className="py-2.5 px-3 text-right">Unit Price</th>
-                  <th className="py-2.5 px-3 text-right">Cost / Unit</th>
-                  <th className="py-2.5 px-3 text-right">Batch Total</th>
-                  <th className="py-2.5 px-2 text-center"></th>
+                <tr className="bg-slate-50 text-slate-600 border-y border-slate-200 font-semibold">
+                  <th className="py-2.5 px-3">Component / Material Name</th>
+                  <th className="py-2.5 px-3">Usage per Product</th>
+                  <th className="py-2.5 px-3">Purchase Price & Unit</th>
+                  <th className="py-2.5 px-3 text-right">Cost per Product</th>
+                  <th className="py-2.5 px-3 text-right">Total Batch Cost</th>
+                  <th className="py-2.5 px-2 text-center">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-slate-800">
                 {variantBom.map((comp) => {
-                  const { costPerFinishedUnit, totalCost } = calculateBomComponentCost(
+                  const compCost = calculateBomComponentCost(
                     comp,
                     summary.actualFinishedQuantity,
                     store.materials
                   );
 
+                  let formattedBatchQty = `${compCost.totalQuantityRequired.toLocaleString()} ${compCost.effectiveUsageUnit}`;
+                  if (
+                    (compCost.effectiveUsageUnit.toLowerCase() === 'g' ||
+                      compCost.effectiveUsageUnit.toLowerCase() === 'gram') &&
+                    compCost.totalQuantityRequired >= 1000
+                  ) {
+                    formattedBatchQty = `${(compCost.totalQuantityRequired / 1000).toLocaleString()} kg`;
+                  } else if (
+                    (compCost.effectiveUsageUnit.toLowerCase() === 'ml' ||
+                      compCost.effectiveUsageUnit.toLowerCase() === 'milliliter') &&
+                    compCost.totalQuantityRequired >= 1000
+                  ) {
+                    formattedBatchQty = `${(compCost.totalQuantityRequired / 1000).toLocaleString()} L`;
+                  }
+
                   return (
                     <tr key={comp.id} className="hover:bg-slate-50/70 transition-colors">
-                      {/* Name */}
-                      <td className="py-2.5 px-3 font-medium">
+                      {/* 1. Name, Category & Master link */}
+                      <td className="py-3 px-3 align-top min-w-[200px]">
                         <input
                           type="text"
                           value={comp.name}
                           onChange={(e) =>
                             costingActions.updateBomComponent(comp.id, { name: e.target.value })
                           }
-                          className="w-full bg-transparent border-b border-transparent hover:border-slate-300 focus:border-sky-500 focus:outline-none py-0.5 font-semibold text-slate-900"
+                          className="w-full bg-transparent border-b border-transparent hover:border-slate-300 focus:border-sky-500 focus:outline-none py-0.5 font-bold text-slate-900 text-xs"
+                          placeholder="e.g. Organic Coconut Sugar"
                         />
+                        <div className="flex items-center gap-1.5 mt-1">
+                          <span
+                            className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
+                              comp.category === 'packaging'
+                                ? 'bg-amber-50 text-amber-800 border border-amber-200'
+                                : 'bg-sky-50 text-sky-800 border border-sky-200'
+                            }`}
+                          >
+                            {comp.category === 'packaging' ? 'Packaging' : 'Raw Material'}
+                          </span>
+                          <select
+                            value={comp.materialId || ''}
+                            onChange={(e) => {
+                              const newMatId = e.target.value || null;
+                              if (newMatId) {
+                                const mat = store.materials.find((m) => m.id === newMatId);
+                                if (mat) {
+                                  costingActions.updateBomComponent(comp.id, {
+                                    materialId: newMatId,
+                                    name: mat.name,
+                                    purchasePrice: mat.purchasePrice,
+                                    purchaseUnit: mat.purchaseUnit,
+                                    usageUnit: mat.consumptionUnit,
+                                    conversionFactor: mat.conversionFactor,
+                                    unitPrice: mat.purchasePrice / mat.conversionFactor,
+                                    unit: mat.consumptionUnit,
+                                  });
+                                  return;
+                                }
+                              }
+                              costingActions.updateBomComponent(comp.id, { materialId: null });
+                            }}
+                            className="bg-slate-50 border border-slate-200 rounded px-1.5 py-0.5 text-[10px] text-slate-600 focus:outline-none focus:ring-1 focus:ring-sky-500 max-w-[130px] truncate"
+                          >
+                            <option value="">Manual / Custom</option>
+                            {store.materials.map((m) => (
+                              <option key={m.id} value={m.id}>
+                                {m.name} ({m.purchaseUnit})
+                              </option>
+                            ))}
+                          </select>
+                        </div>
                       </td>
 
-                      {/* Category */}
-                      <td className="py-2.5 px-3">
-                        <span
-                          className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
-                            comp.category === 'packaging'
-                              ? 'bg-amber-50 text-amber-800 border border-amber-200'
-                              : 'bg-sky-50 text-sky-800 border border-sky-200'
-                          }`}
-                        >
-                          {comp.category === 'packaging' ? 'Packaging' : 'Raw Material'}
+                      {/* 2. Usage per Product */}
+                      <td className="py-3 px-3 align-top min-w-[150px]">
+                        <div className="flex items-center gap-1.5">
+                          <input
+                            type="number"
+                            step="any"
+                            min="0"
+                            value={comp.usagePerProduct ?? comp.quantityRequired ?? ''}
+                            onChange={(e) => {
+                              const val = parseFloat(e.target.value) || 0;
+                              costingActions.updateBomComponent(comp.id, {
+                                usagePerProduct: val,
+                                quantityRequired: val,
+                              });
+                            }}
+                            className="w-20 text-right bg-slate-50 border border-slate-200 rounded px-2 py-1 text-slate-900 font-mono font-semibold text-xs focus:bg-white focus:ring-1 focus:ring-sky-500 focus:outline-none"
+                          />
+                          <input
+                            type="text"
+                            value={comp.usageUnit ?? comp.unit ?? 'pcs'}
+                            onChange={(e) => {
+                              const u = e.target.value;
+                              costingActions.updateBomComponent(comp.id, {
+                                usageUnit: u,
+                                unit: u,
+                              });
+                            }}
+                            placeholder="g / pcs"
+                            className="w-14 bg-slate-50 border border-slate-200 rounded px-1.5 py-1 text-xs text-slate-700 font-medium focus:bg-white focus:ring-1 focus:ring-sky-500 focus:outline-none"
+                          />
+                        </div>
+                        <span className="text-[10px] text-slate-400 block mt-0.5">
+                          per 1 finished product
                         </span>
                       </td>
 
-                      {/* Master Material dropdown */}
-                      <td className="py-2.5 px-3">
-                        <select
-                          value={comp.materialId || ''}
-                          onChange={(e) => {
-                            const newMatId = e.target.value || null;
-                            if (newMatId) {
-                              const mat = store.materials.find((m) => m.id === newMatId);
-                              if (mat) {
-                                costingActions.updateBomComponent(comp.id, {
-                                  materialId: newMatId,
-                                  name: mat.name,
-                                  unit: mat.consumptionUnit,
-                                  unitPrice: mat.purchasePrice / mat.conversionFactor,
-                                });
-                                return;
-                              }
-                            }
-                            costingActions.updateBomComponent(comp.id, { materialId: null });
-                          }}
-                          className="bg-slate-50 border border-slate-200 rounded px-2 py-1 text-[11px] text-slate-700 focus:outline-none focus:ring-1 focus:ring-sky-500 max-w-[140px] truncate"
-                        >
-                          <option value="">Custom / Manual</option>
-                          {store.materials.map((m) => (
-                            <option key={m.id} value={m.id}>
-                              {m.name} ({m.consumptionUnit})
-                            </option>
-                          ))}
-                        </select>
+                      {/* 3. Purchase Price & Purchase Unit */}
+                      <td className="py-3 px-3 align-top min-w-[200px]">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[11px] text-slate-400 font-medium">Rp</span>
+                          <input
+                            type="number"
+                            step="any"
+                            min="0"
+                            value={comp.purchasePrice ?? comp.unitPrice ?? ''}
+                            onChange={(e) => {
+                              const pPrice = parseFloat(e.target.value) || 0;
+                              costingActions.updateBomComponent(comp.id, {
+                                purchasePrice: pPrice,
+                              });
+                            }}
+                            className="w-24 text-right bg-slate-50 border border-slate-200 rounded px-2 py-1 text-slate-900 font-mono font-semibold text-xs focus:bg-white focus:ring-1 focus:ring-sky-500 focus:outline-none"
+                          />
+                          <span className="text-[11px] text-slate-400">/</span>
+                          <input
+                            type="text"
+                            value={comp.purchaseUnit ?? comp.unit ?? 'kg'}
+                            onChange={(e) => {
+                              const pUnit = e.target.value;
+                              costingActions.updateBomComponent(comp.id, {
+                                purchaseUnit: pUnit,
+                              });
+                            }}
+                            placeholder="kg / pcs"
+                            className="w-14 bg-slate-50 border border-slate-200 rounded px-1.5 py-1 text-xs text-slate-700 font-medium focus:bg-white focus:ring-1 focus:ring-sky-500 focus:outline-none"
+                          />
+                        </div>
+                        {/* Auto-converted Unit Price note */}
+                        <div className="text-[10px] text-sky-700 font-medium mt-0.5">
+                          = {formatCurrencyValue(compCost.unitPrice, store.currency)} / {compCost.effectiveUsageUnit}
+                        </div>
                       </td>
 
-                      {/* Quantity Required */}
-                      <td className="py-2.5 px-3 text-right">
-                        <input
-                          type="number"
-                          step="any"
-                          value={comp.quantityRequired || ''}
-                          onChange={(e) =>
-                            costingActions.updateBomComponent(comp.id, {
-                              quantityRequired: parseFloat(e.target.value) || 0,
-                            })
-                          }
-                          className="w-16 text-right bg-slate-50 border border-slate-200 rounded px-1.5 py-1 text-slate-900 font-mono text-xs focus:ring-1 focus:ring-sky-500 focus:outline-none"
-                        />
+                      {/* 4. Cost per Product */}
+                      <td className="py-3 px-3 align-top text-right min-w-[130px]">
+                        <div className="font-bold text-slate-900 text-sm">
+                          {formatCurrencyValue(compCost.costPerFinishedUnit, store.currency)}
+                        </div>
+                        <div className="text-[10px] text-slate-400 font-mono mt-0.5">
+                          {(comp.usagePerProduct ?? comp.quantityRequired ?? 0)} {compCost.effectiveUsageUnit} × {formatCurrencyValue(compCost.unitPrice, store.currency)}
+                        </div>
                       </td>
 
-                      {/* Unit */}
-                      <td className="py-2.5 px-3">
-                        <input
-                          type="text"
-                          value={comp.unit}
-                          onChange={(e) =>
-                            costingActions.updateBomComponent(comp.id, { unit: e.target.value })
-                          }
-                          className="w-12 bg-transparent border-b border-transparent hover:border-slate-300 focus:border-sky-500 text-xs py-0.5 focus:outline-none font-medium"
-                        />
+                      {/* 5. Total Batch Cost */}
+                      <td className="py-3 px-3 align-top text-right min-w-[150px]">
+                        <div className="font-black text-sky-800 text-sm">
+                          {formatCurrencyValue(compCost.totalCost, store.currency)}
+                        </div>
+                        <div className="text-[10px] font-semibold text-amber-700 bg-amber-50 border border-amber-200/80 rounded px-1.5 py-0.5 inline-block mt-0.5">
+                          Batch: {formattedBatchQty}
+                        </div>
                       </td>
 
-                      {/* Unit Price */}
-                      <td className="py-2.5 px-3 text-right">
-                        <input
-                          type="number"
-                          step="any"
-                          value={comp.unitPrice || ''}
-                          onChange={(e) =>
-                            costingActions.updateBomComponent(comp.id, {
-                              unitPrice: parseFloat(e.target.value) || 0,
-                            })
-                          }
-                          className="w-20 text-right bg-slate-50 border border-slate-200 rounded px-1.5 py-1 text-slate-900 font-mono text-xs focus:ring-1 focus:ring-sky-500 focus:outline-none"
-                        />
-                      </td>
-
-                      {/* Cost per unit */}
-                      <td className="py-2.5 px-3 text-right font-medium text-slate-700">
-                        {formatCurrencyValue(costPerFinishedUnit, store.currency)}
-                      </td>
-
-                      {/* Total Cost */}
-                      <td className="py-2.5 px-3 text-right font-bold text-sky-800">
-                        {formatCurrencyValue(totalCost, store.currency)}
-                      </td>
-
-                      {/* Delete */}
-                      <td className="py-2.5 px-2 text-center">
-                        <button
-                          onClick={() => costingActions.deleteBomComponent(comp.id)}
-                          className="p-1 text-slate-300 hover:text-rose-600 rounded transition-colors"
-                          title="Remove item"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+                      {/* 6. Actions */}
+                      <td className="py-3 px-2 align-top text-center">
+                        <div className="flex items-center justify-center gap-1">
+                          <button
+                            onClick={() => costingActions.duplicateBomComponent(comp.id)}
+                            className="p-1 text-slate-400 hover:text-slate-700 rounded transition-colors"
+                            title="Duplicate item"
+                          >
+                            <Copy className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => costingActions.deleteBomComponent(comp.id)}
+                            className="p-1 text-slate-400 hover:text-rose-600 rounded transition-colors"
+                            title="Remove item"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -539,8 +643,8 @@ export const ProductWorkspace: React.FC<ProductWorkspaceProps> = ({
 
                 {variantBom.length === 0 && (
                   <tr>
-                    <td colSpan={9} className="py-8 text-center text-slate-400">
-                      No materials added yet. Click &ldquo;+ Raw Material&rdquo; or &ldquo;+ Packaging&rdquo; above.
+                    <td colSpan={6} className="py-8 text-center text-slate-400">
+                      No materials or packaging added yet. Click &ldquo;+ Raw Material&rdquo; or &ldquo;+ Packaging&rdquo; above.
                     </td>
                   </tr>
                 )}
@@ -549,11 +653,25 @@ export const ProductWorkspace: React.FC<ProductWorkspaceProps> = ({
           </div>
 
           {/* Subtotal row */}
-          <div className="border-t border-slate-200 pt-3 flex justify-between text-xs text-slate-600 font-semibold px-2">
-            <span>Total Materials & Packaging:</span>
-            <span className="text-slate-900 font-bold">
-              {formatCurrencyValue(summary.rawMaterialsTotal + summary.packagingTotal, store.currency)}
-            </span>
+          <div className="border-t border-slate-200 pt-3 flex flex-wrap items-center justify-between gap-3 text-xs bg-slate-50/60 p-3 rounded-lg">
+            <div className="flex items-center gap-4 text-slate-600">
+              <span>
+                Raw Materials: <strong className="text-slate-900">{formatCurrencyValue(summary.rawMaterialsCostPerUnit, store.currency)}</strong> / unit ({formatCurrencyValue(summary.rawMaterialsTotal, store.currency)} batch)
+              </span>
+              <span>
+                Packaging: <strong className="text-slate-900">{formatCurrencyValue(summary.packagingCostPerUnit, store.currency)}</strong> / unit ({formatCurrencyValue(summary.packagingTotal, store.currency)} batch)
+              </span>
+            </div>
+            <div className="text-right">
+              <span className="text-slate-600 font-medium mr-2">Total Materials & Packaging:</span>
+              <span className="text-sm font-black text-slate-900">
+                {formatCurrencyValue(summary.rawMaterialsCostPerUnit + summary.packagingCostPerUnit, store.currency)}
+                <span className="text-xs font-semibold text-slate-500 ml-1">/ unit</span>
+              </span>
+              <span className="text-xs font-bold text-sky-800 ml-2">
+                ({formatCurrencyValue(summary.rawMaterialsTotal + summary.packagingTotal, store.currency)} batch)
+              </span>
+            </div>
           </div>
         </div>
       )}

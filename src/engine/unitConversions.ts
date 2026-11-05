@@ -35,23 +35,44 @@ export const STANDARD_CONVERSIONS: UnitPair[] = [
   { fromUnit: 'gross', toUnit: 'pcs', factor: 144 },
 ];
 
-export function getSuggestedConversionFactor(purchaseUnit: string, consumptionUnit: string): number {
+export function getSuggestedConversionFactor(purchaseUnit: string, usageUnit: string): number {
   const p = purchaseUnit.trim().toLowerCase();
-  const c = consumptionUnit.trim().toLowerCase();
+  const u = usageUnit.trim().toLowerCase();
 
-  if (p === c) return 1;
+  if (p === u) return 1;
 
+  // Direct match: e.g. from kg to g -> 1000
   const match = STANDARD_CONVERSIONS.find(
-    (item) => item.fromUnit.toLowerCase() === p && item.toUnit.toLowerCase() === c
+    (item) => item.fromUnit.toLowerCase() === p && item.toUnit.toLowerCase() === u
   );
   if (match) return match.factor;
 
+  // Reverse match: e.g. from g to kg -> 0.001
   const reverseMatch = STANDARD_CONVERSIONS.find(
-    (item) => item.fromUnit.toLowerCase() === c && item.toUnit.toLowerCase() === p
+    (item) => item.fromUnit.toLowerCase() === u && item.toUnit.toLowerCase() === p
   );
   if (reverseMatch && reverseMatch.factor > 0) return 1 / reverseMatch.factor;
 
   return 1;
+}
+
+export function convertPurchasePriceToUsagePrice(
+  purchasePrice: number,
+  purchaseUnit: string,
+  usageUnit: string,
+  customFactor?: number
+): number {
+  if (purchasePrice <= 0) return 0;
+
+  // If user provided a specific custom conversion factor
+  if (customFactor && customFactor > 0) {
+    return purchasePrice / customFactor;
+  }
+
+  const factor = getSuggestedConversionFactor(purchaseUnit, usageUnit);
+  if (factor <= 0) return purchasePrice;
+
+  return purchasePrice / factor;
 }
 
 export function calculateCostPerConsumptionUnit(
@@ -62,18 +83,38 @@ export function calculateCostPerConsumptionUnit(
   return purchasePrice / conversionFactor;
 }
 
+export const PURCHASE_UNITS = [
+  'Kg',
+  'Gram',
+  'Liter',
+  'Milliliter',
+  'Pcs',
+  'Box',
+  'Pack',
+  'Meter',
+  'Roll',
+  'Other',
+];
+
+export const USAGE_UNITS = [
+  'Gram',
+  'Kg',
+  'Milliliter',
+  'Liter',
+  'Pcs',
+  'Meter',
+  'Centimeter',
+  'Other',
+];
+
 export const COMMON_UNITS = [
-  { label: 'Weight (Gram - g)', value: 'g' },
-  { label: 'Weight (Kilogram - kg)', value: 'kg' },
-  { label: 'Weight (Milligram - mg)', value: 'mg' },
-  { label: 'Volume (Milliliter - ml)', value: 'ml' },
-  { label: 'Volume (Liter - l)', value: 'l' },
-  { label: 'Length (Meter - m)', value: 'm' },
-  { label: 'Length (Centimeter - cm)', value: 'cm' },
+  { label: 'Gram (g)', value: 'g' },
+  { label: 'Kilogram (kg)', value: 'kg' },
+  { label: 'Milliliter (ml)', value: 'ml' },
+  { label: 'Liter (l)', value: 'l' },
   { label: 'Piece (pcs)', value: 'pcs' },
+  { label: 'Meter (m)', value: 'm' },
+  { label: 'Centimeter (cm)', value: 'cm' },
   { label: 'Box (box)', value: 'box' },
   { label: 'Pack (pack)', value: 'pack' },
-  { label: 'Set (set)', value: 'set' },
-  { label: 'Roll (roll)', value: 'roll' },
-  { label: 'Batch (batch)', value: 'batch' },
 ];

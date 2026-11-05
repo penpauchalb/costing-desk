@@ -10,7 +10,10 @@ import {
   ProductVariant,
   Scenario,
 } from '../types';
-import { calculateCostPerConsumptionUnit } from './unitConversions';
+import {
+  calculateCostPerConsumptionUnit,
+  convertPurchasePriceToUsagePrice,
+} from './unitConversions';
 
 /**
  * Calculates the actual finished quantity based on planned quantity,
@@ -43,58 +46,86 @@ export function calculateActualFinishedQuantity(
 
 /**
  * Calculates the total cost and unit cost for an individual BOM component.
+ * Formula:
+ * - Cost per Product = Usage per Product * Converted Unit Price
+ * - Batch Cost = Cost per Product * Batch Quantity
  */
 export function calculateBomComponentCost(
   component: BomComponent,
   finishedQuantity: number,
   masterMaterials?: MasterMaterial[]
 ): {
-  unitPrice: number;
-  costPerFinishedUnit: number;
-  totalCost: number;
-  totalQuantityRequired: number;
+  unitPrice: number; // converted price per usage unit
+  costPerFinishedUnit: number; // cost per product
+  totalCost: number; // total batch cost
+  totalQuantityRequired: number; // total usage for the batch
+  effectivePurchasePrice: number;
+  effectivePurchaseUnit: string;
+  effectiveUsageUnit: string;
 } {
-  let unitPrice = component.unitPrice;
+  const safeFinishedQty = finishedQuantity > 0 ? finishedQuantity : 1;
 
-  // If linked to master material and unitPrice wasn't manually set (> 0),
-  // pull latest unit cost from master material
+  // Usage per product (backward compatible with quantityRequired)
+  const usagePerProduct =
+    component.usagePerProduct !== undefined
+      ? component.usagePerProduct
+      : component.quantityRequired || 0;
+
+  let purchasePrice = component.purchasePrice ?? component.unitPrice ?? 0;
+  let purchaseUnit = component.purchaseUnit ?? component.unit ?? 'pcs';
+  let usageUnit = component.usageUnit ?? component.unit ?? 'pcs';
+  let conversionFactor = component.conversionFactor;
+
+  // If linked to master material and purchasePrice wasn't manually overridden
   if (component.materialId && masterMaterials) {
     const mat = masterMaterials.find((m) => m.id === component.materialId);
     if (mat) {
-      const derivedUnitPrice = calculateCostPerConsumptionUnit(
-        mat.purchasePrice,
-        mat.conversionFactor
-      );
-      if (unitPrice === 0 || unitPrice === undefined) {
-        unitPrice = derivedUnitPrice;
+      if (component.purchasePrice === undefined || component.purchasePrice === 0) {
+        purchasePrice = mat.purchasePrice;
+        purchaseUnit = mat.purchaseUnit;
+        usageUnit = component.usageUnit || mat.consumptionUnit;
+        conversionFactor = mat.conversionFactor;
       }
     }
   }
 
-  const qty = component.quantityRequired || 0;
-  const safeFinishedQty = finishedQuantity > 0 ? finishedQuantity : 1;
-
+  // Convert purchase price to usage price (e.g. Rp29,000/kg -> Rp29/g)
+  let convertedUnitPrice: number;
   if (component.costBasis === 'per_batch') {
-    const totalCost = qty * unitPrice;
+    // legacy per_batch support
+    const totalCost = usagePerProduct * purchasePrice;
     const costPerFinishedUnit = totalCost / safeFinishedQty;
     return {
-      unitPrice,
+      unitPrice: purchasePrice,
       costPerFinishedUnit,
       totalCost,
-      totalQuantityRequired: qty,
-    };
-  } else {
-    // per_finished_unit
-    const costPerFinishedUnit = qty * unitPrice;
-    const totalCost = costPerFinishedUnit * safeFinishedQty;
-    const totalQuantityRequired = qty * safeFinishedQty;
-    return {
-      unitPrice,
-      costPerFinishedUnit,
-      totalCost,
-      totalQuantityRequired,
+      totalQuantityRequired: usagePerProduct,
+      effectivePurchasePrice: purchasePrice,
+      effectivePurchaseUnit: purchaseUnit,
+      effectiveUsageUnit: usageUnit,
     };
   }
+
+  convertedUnitPrice = convertPurchasePriceToUsagePrice(
+    purchasePrice,
+    purchaseUnit,
+    usageUnit,
+    conversionFactor
+  );
+
+  const costPerFinishedUnit = usagePerProduct * convertedUnitPrice;
+  const totalCost = costPerFinishedUnit * safeFinishedQty;
+  const totalQuantityRequired = usagePerProduct * safeFinishedQty;
+
+  return {
+    unitPrice: convertedUnitPrice,
+    costPerFinishedUnit,
+    totalCost,
+    totalQuantityRequired,
+    effectivePurchasePrice: purchasePrice,
+    effectivePurchaseUnit: purchaseUnit,
+    effectiveUsageUnit: usageUnit,
+  };
 }
 
 /**
@@ -301,6 +332,10 @@ export function calculateProductCostSummary(
     laborTotal,
     overheadTotal: overheadIncludedTotal,
     otherExpensesTotal: otherBomTotal + overheadExcludedTotal,
+    rawMaterialsCostPerUnit: finishedQty > 0 ? rawMaterialsTotal / finishedQty : 0,
+    packagingCostPerUnit: finishedQty > 0 ? packagingTotal / finishedQty : 0,
+    laborCostPerUnit: finishedQty > 0 ? laborTotal / finishedQty : 0,
+    overheadCostPerUnit: finishedQty > 0 ? overheadIncludedTotal / finishedQty : 0,
     totalProductionCost,
     unitHpp,
     unitHppExcludingIndirect,
@@ -345,6 +380,7 @@ export function calculateGroupSummary(
   return {
     groupId: group.id,
     groupName: group.name,
+    category: group.category,
     productCount: productsInGroup.length,
     totalFinishedUnits,
     totalRawMaterialsCost,
@@ -386,8 +422,10 @@ export function simulateScenario(
     } else if (comp.category === 'packaging' || comp.category === 'accessories') {
       multiplier = pkgMultiplier;
     }
+    const currentPrice = comp.purchasePrice ?? comp.unitPrice;
     return {
       ...comp,
+      purchasePrice: currentPrice * multiplier,
       unitPrice: comp.unitPrice * multiplier,
     };
   });

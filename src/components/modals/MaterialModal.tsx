@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Boxes, ArrowRightLeft } from 'lucide-react';
+import { X, Boxes, ArrowRightLeft, Settings2 } from 'lucide-react';
 import { costingActions, useCostingStore } from '../../store/costingStore';
 import { MasterMaterial } from '../../types';
 import {
@@ -7,6 +7,7 @@ import {
   getSuggestedConversionFactor,
 } from '../../engine/unitConversions';
 import { formatCurrencyValue } from '../../engine/exportPdf';
+import { CategoryModal } from '../categories/CategoryModal';
 
 interface MaterialModalProps {
   isOpen: boolean;
@@ -23,6 +24,7 @@ export const MaterialModal: React.FC<MaterialModalProps> = ({
 
   const [name, setName] = useState('');
   const [category, setCategory] = useState('Raw Materials');
+  const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
   const [purchaseUnit, setPurchaseUnit] = useState('kg');
   const [purchasePrice, setPurchasePrice] = useState<number>(29000);
   const [consumptionUnit, setConsumptionUnit] = useState('gram');
@@ -137,14 +139,35 @@ export const MaterialModal: React.FC<MaterialModalProps> = ({
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block font-semibold text-slate-700 mb-1">Category</label>
-              <input
-                type="text"
-                placeholder="Ingredients, Packaging, Chemical..."
+              <div className="flex items-center justify-between mb-1">
+                <label className="block font-semibold text-slate-700">Category</label>
+                <button
+                  type="button"
+                  onClick={() => setIsCategoryModalOpen(true)}
+                  className="text-[10px] text-teal-600 hover:text-teal-700 flex items-center gap-0.5 font-medium"
+                >
+                  <Settings2 className="w-2.5 h-2.5" />
+                  Manage
+                </button>
+              </div>
+              <select
                 value={category}
-                onChange={(e) => setCategory(e.target.value)}
+                onChange={(e) => {
+                  if (e.target.value === '__NEW__') {
+                    setIsCategoryModalOpen(true);
+                  } else {
+                    setCategory(e.target.value);
+                  }
+                }}
                 className="w-full bg-slate-50 border border-slate-200 rounded px-3 py-2 text-slate-800 focus:bg-white focus:ring-1 focus:ring-teal-500 focus:outline-none"
-              />
+              >
+                {store.categories.map((c) => (
+                  <option key={c.id} value={c.name}>
+                    {c.name}
+                  </option>
+                ))}
+                <option value="__NEW__">+ Add Custom Category...</option>
+              </select>
             </div>
 
             <div>
@@ -262,6 +285,12 @@ export const MaterialModal: React.FC<MaterialModalProps> = ({
           </div>
         </form>
       </div>
+
+      <CategoryModal
+        isOpen={isCategoryModalOpen}
+        onClose={() => setIsCategoryModalOpen(false)}
+        onSelectCategory={(catName) => setCategory(catName)}
+      />
     </div>
   );
 };

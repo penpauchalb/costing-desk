@@ -18,8 +18,10 @@ import {
   Edit2,
   Trash2,
   PlusCircle,
+  Tag,
 } from 'lucide-react';
 import { costingActions, useCostingStore } from '../../store/costingStore';
+import { CategoryModal } from '../categories/CategoryModal';
 
 interface SidebarProps {
   onOpenNewProduct: (groupId?: string | null) => void;
@@ -34,6 +36,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   const store = useCostingStore();
   const [activeMenuGroupId, setActiveMenuGroupId] = useState<string | null>(null);
+  const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
 
   const ungroupedProducts = store.products.filter((p) => p.groupId === null);
 
@@ -377,6 +380,23 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <FileBarChart className="w-4 h-4 text-slate-500" />
           {!store.sidebarCollapsed && <span>Reports & Exports</span>}
         </button>
+
+        {/* Categories Manager */}
+        <button
+          onClick={() => setIsCategoryModalOpen(true)}
+          className="w-full flex items-center justify-between px-2.5 py-2 rounded font-medium transition-colors text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+          title="Categories Manager"
+        >
+          <div className="flex items-center gap-2.5">
+            <Tag className="w-4 h-4 text-slate-500" />
+            {!store.sidebarCollapsed && <span>Categories</span>}
+          </div>
+          {!store.sidebarCollapsed && (
+            <span className="text-[10px] text-slate-400 bg-slate-200/60 px-1.5 py-0.5 rounded-full font-mono">
+              {store.categories.length}
+            </span>
+          )}
+        </button>
       </div>
 
       {/* Footer Settings */}
@@ -394,6 +414,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
           {!store.sidebarCollapsed && <span>Settings & Sync</span>}
         </button>
       </div>
+
+      <CategoryModal
+        isOpen={isCategoryModalOpen}
+        onClose={() => setIsCategoryModalOpen(false)}
+      />
     </aside>
   );
 };

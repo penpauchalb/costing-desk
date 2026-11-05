@@ -164,25 +164,23 @@ export function generateCostingExcelWorkbook(payload: ExportDataPayload): void {
     const mat = materials.find((m) => m.id === comp.materialId);
 
     const finishedQty = v ? v.actualQuantity || v.plannedQuantity : 100;
-    const { costPerFinishedUnit, totalCost, totalQuantityRequired } = calculateBomComponentCost(
-      comp,
-      finishedQty,
-      materials
-    );
+    const compCost = calculateBomComponentCost(comp, finishedQty, materials);
+    const { costPerFinishedUnit, totalCost, totalQuantityRequired } = compCost;
 
     bomRows.push({
       Product: prod?.name || 'Unknown',
       Variant: v?.name || 'Unknown',
       'Cost Component': comp.name,
-      Category: comp.category,
-      'Linked Master Material': mat?.name || 'Custom / Unlinked',
-      'Qty per Unit': comp.quantityRequired,
-      Unit: comp.unit,
-      'Unit Price': comp.unitPrice,
-      'Cost Basis': comp.costBasis,
-      'Cost Per Finished Unit': Math.round(costPerFinishedUnit * 100) / 100,
-      'Total Qty Required': Math.round(totalQuantityRequired * 100) / 100,
-      'Total Cost': Math.round(totalCost),
+      Category: comp.category === 'packaging' ? 'Packaging' : 'Raw Material',
+      'Linked Material': mat?.name || 'Custom / Unlinked',
+      'Usage per Product': comp.usagePerProduct ?? comp.quantityRequired,
+      'Usage Unit': compCost.effectiveUsageUnit,
+      'Purchase Price': compCost.effectivePurchasePrice,
+      'Purchase Unit': compCost.effectivePurchaseUnit,
+      'Price per Usage Unit': Math.round(compCost.unitPrice * 100) / 100,
+      'Cost per Product': Math.round(costPerFinishedUnit * 100) / 100,
+      'Total Batch Usage Required': Math.round(totalQuantityRequired * 100) / 100,
+      'Total Batch Cost': Math.round(totalCost),
       Status: comp.status,
       Notes: comp.notes || '',
     });

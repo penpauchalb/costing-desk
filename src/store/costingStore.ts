@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import {
   BomComponent,
   CurrencyCode,
+  CustomCategory,
   MasterMaterial,
   OverheadItem,
   Product,
@@ -14,6 +15,7 @@ import {
 import {
   INITIAL_BATCHES,
   INITIAL_BOM,
+  INITIAL_CATEGORIES,
   INITIAL_GROUPS,
   INITIAL_LABOR,
   INITIAL_MATERIALS,
@@ -42,6 +44,7 @@ export type AppView =
 
 export interface CostingDeskState {
   currency: CurrencyCode;
+  categories: CustomCategory[];
   groups: ProductGroup[];
   materials: MasterMaterial[];
   products: Product[];
@@ -83,14 +86,66 @@ function saveToStorage<T>(key: string, value: T): void {
   }
 }
 
+function loadGroups(): ProductGroup[] {
+  const loaded = loadFromStorage<ProductGroup[]>('groups', INITIAL_GROUPS);
+  const existingIds = new Set(loaded.map((g) => g.id));
+  const missingDefaults = INITIAL_GROUPS.filter((g) => !existingIds.has(g.id));
+  if (missingDefaults.length > 0) {
+    const merged = [...loaded, ...missingDefaults];
+    saveToStorage('groups', merged);
+    return merged;
+  }
+  return loaded;
+}
+
+function loadProducts(): Product[] {
+  const loaded = loadFromStorage<Product[]>('products', INITIAL_PRODUCTS);
+  const existingIds = new Set(loaded.map((p) => p.id));
+  const missingDefaults = INITIAL_PRODUCTS.filter((p) => !existingIds.has(p.id));
+  if (missingDefaults.length > 0) {
+    const merged = [...loaded, ...missingDefaults];
+    saveToStorage('products', merged);
+    return merged;
+  }
+  return loaded;
+}
+
+function loadVariants(): ProductVariant[] {
+  const loaded = loadFromStorage<ProductVariant[]>('variants', INITIAL_VARIANTS);
+  const existingIds = new Set(loaded.map((v) => v.id));
+  const missingDefaults = INITIAL_VARIANTS.filter((v) => !existingIds.has(v.id));
+  if (missingDefaults.length > 0) {
+    const merged = [...loaded, ...missingDefaults];
+    saveToStorage('variants', merged);
+    return merged;
+  }
+  return loaded;
+}
+
+function loadBom(): BomComponent[] {
+  const loaded = loadFromStorage<BomComponent[]>('bom', INITIAL_BOM);
+  const existingIds = new Set(loaded.map((b) => b.id));
+  const missingDefaults = INITIAL_BOM.filter((b) => !existingIds.has(b.id));
+  const combined = missingDefaults.length > 0 ? [...loaded, ...missingDefaults] : loaded;
+  return combined.map((b) => ({
+    ...b,
+    usagePerProduct: b.usagePerProduct ?? b.quantityRequired ?? 1,
+    usageUnit: b.usageUnit ?? b.unit ?? 'pcs',
+    purchasePrice: b.purchasePrice ?? b.unitPrice ?? 0,
+    purchaseUnit: b.purchaseUnit ?? b.unit ?? 'pcs',
+    conversionFactor: b.conversionFactor ?? 1,
+  }));
+}
+
 // Initial default state
 const initialAppState: CostingDeskState = {
   currency: loadFromStorage<CurrencyCode>('currency', 'IDR'),
-  groups: loadFromStorage<ProductGroup[]>('groups', INITIAL_GROUPS),
+  categories: loadFromStorage<CustomCategory[]>('categories', INITIAL_CATEGORIES),
+  groups: loadGroups(),
   materials: loadFromStorage<MasterMaterial[]>('materials', INITIAL_MATERIALS),
-  products: loadFromStorage<Product[]>('products', INITIAL_PRODUCTS),
-  variants: loadFromStorage<ProductVariant[]>('variants', INITIAL_VARIANTS),
-  bom: loadFromStorage<BomComponent[]>('bom', INITIAL_BOM),
+  products: loadProducts(),
+  variants: loadVariants(),
+  bom: loadBom(),
   labor: loadFromStorage<ProductionProcessStage[]>('labor', INITIAL_LABOR),
   overhead: loadFromStorage<OverheadItem[]>('overhead', INITIAL_OVERHEAD),
   batches: loadFromStorage<ProductionBatch[]>('batches', INITIAL_BATCHES),
@@ -102,6 +157,8 @@ const initialAppState: CostingDeskState = {
   searchQuery: '',
   sidebarCollapsed: loadFromStorage<boolean>('sidebar_collapsed', false),
   expandedGroupIds: loadFromStorage<Record<string, boolean>>('expanded_groups', {
+    'grp-trovia-core': true,
+    'grp-trovia-vibe': true,
     'grp-line-a': true,
     'grp-apparel': true,
   }),
@@ -211,11 +268,40 @@ export const costingActions = {
     updateState((prev) => ({ ...prev, selectedVariantId: variantId }));
   },
 
+  // Categories
+  addCategory(name: string, color = '#0284c7') {
+    const newCategory: CustomCategory = {
+      id: 'cat-' + Date.now(),
+      name: name.trim(),
+      color,
+      createdAt: new Date().toISOString(),
+    };
+    const nextCategories = [...currentState.categories, newCategory];
+    saveToStorage('categories', nextCategories);
+    updateState((prev) => ({ ...prev, categories: nextCategories }));
+    return newCategory;
+  },
+
+  updateCategory(categoryId: string, updates: Partial<CustomCategory>) {
+    const nextCategories = currentState.categories.map((c) =>
+      c.id === categoryId ? { ...c, ...updates } : c
+    );
+    saveToStorage('categories', nextCategories);
+    updateState((prev) => ({ ...prev, categories: nextCategories }));
+  },
+
+  deleteCategory(categoryId: string) {
+    const nextCategories = currentState.categories.filter((c) => c.id !== categoryId);
+    saveToStorage('categories', nextCategories);
+    updateState((prev) => ({ ...prev, categories: nextCategories }));
+  },
+
   // Groups
-  addGroup(name: string, description?: string) {
+  addGroup(name: string, category = 'Food & Beverage', description?: string) {
     const newGroup: ProductGroup = {
       id: 'grp-' + Date.now(),
       name: name.trim(),
+      category: category.trim() || 'General',
       description: description?.trim(),
       orderIndex: currentState.groups.length,
       createdAt: new Date().toISOString(),
@@ -232,10 +318,16 @@ export const costingActions = {
     return newGroup;
   },
 
-  updateGroup(groupId: string, name: string, description?: string) {
+  updateGroup(groupId: string, name: string, category?: string, description?: string) {
     const nextGroups = currentState.groups.map((g) =>
       g.id === groupId
-        ? { ...g, name: name.trim(), description: description?.trim(), updatedAt: new Date().toISOString() }
+        ? {
+            ...g,
+            name: name.trim(),
+            category: category !== undefined ? category.trim() : g.category,
+            description: description?.trim(),
+            updatedAt: new Date().toISOString(),
+          }
         : g
     );
     saveToStorage('groups', nextGroups);
@@ -589,6 +681,11 @@ export const costingActions = {
     const newComp: BomComponent = {
       ...component,
       id: 'bom-' + Date.now(),
+      usagePerProduct: component.usagePerProduct ?? component.quantityRequired ?? 1,
+      usageUnit: component.usageUnit ?? component.unit ?? 'pcs',
+      purchasePrice: component.purchasePrice ?? component.unitPrice ?? 0,
+      purchaseUnit: component.purchaseUnit ?? component.unit ?? 'pcs',
+      conversionFactor: component.conversionFactor ?? 1,
     };
     const nextBom = [...currentState.bom, newComp];
     saveToStorage('bom', nextBom);
@@ -770,6 +867,7 @@ export const costingActions = {
       exportedAt: new Date().toISOString(),
       data: {
         currency: currentState.currency,
+        categories: currentState.categories,
         groups: currentState.groups,
         materials: currentState.materials,
         products: currentState.products,
@@ -791,6 +889,7 @@ export const costingActions = {
       const d = parsed.data;
 
       if (d.currency) saveToStorage('currency', d.currency);
+      if (d.categories) saveToStorage('categories', d.categories);
       if (d.groups) saveToStorage('groups', d.groups);
       if (d.materials) saveToStorage('materials', d.materials);
       if (d.products) saveToStorage('products', d.products);
@@ -804,6 +903,7 @@ export const costingActions = {
       updateState((prev) => ({
         ...prev,
         currency: d.currency || prev.currency,
+        categories: d.categories || prev.categories,
         groups: d.groups || prev.groups,
         materials: d.materials || prev.materials,
         products: d.products || prev.products,
@@ -821,6 +921,7 @@ export const costingActions = {
   },
 
   resetToInitialSampleData() {
+    saveToStorage('categories', INITIAL_CATEGORIES);
     saveToStorage('groups', INITIAL_GROUPS);
     saveToStorage('materials', INITIAL_MATERIALS);
     saveToStorage('products', INITIAL_PRODUCTS);
@@ -833,6 +934,7 @@ export const costingActions = {
 
     updateState((prev) => ({
       ...prev,
+      categories: INITIAL_CATEGORIES,
       groups: INITIAL_GROUPS,
       materials: INITIAL_MATERIALS,
       products: INITIAL_PRODUCTS,

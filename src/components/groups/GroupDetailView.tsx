@@ -117,14 +117,27 @@ export const GroupDetailView: React.FC<GroupDetailViewProps> = ({
             <Folder className="w-5 h-5" />
           </div>
           <div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <h1 className="text-xl font-bold text-slate-900">{group.name}</h1>
+              {group.category && (
+                <span
+                  className="text-[11px] font-semibold px-2.5 py-0.5 rounded-full text-white shadow-2xs"
+                  style={{
+                    backgroundColor:
+                      store.categories.find(
+                        (c) => c.name.toLowerCase() === (group.category || '').toLowerCase()
+                      )?.color || '#0284c7',
+                  }}
+                >
+                  {group.category}
+                </span>
+              )}
               <span className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full font-mono">
                 {groupProducts.length} products
               </span>
             </div>
             <p className="text-xs text-slate-500 mt-1 max-w-2xl">
-              {group.description || 'No description provided. Products in this group can have independent cost structures.'}
+              {group.description || 'Consolidated costing group for managing multi-product lines, budget totals, and aggregated HPP.'}
             </p>
           </div>
         </div>
@@ -173,59 +186,54 @@ export const GroupDetailView: React.FC<GroupDetailViewProps> = ({
 
       {/* Group KPI Cards */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-        {/* Total Products */}
-        <div className="bg-white border border-slate-200 rounded-lg p-3.5 shadow-sm">
-          <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Products</div>
-          <div className="text-xl font-bold text-slate-800 mt-1">{groupSummary.productCount}</div>
-          <div className="text-[10px] text-slate-400 mt-0.5">{variantSummaries.length} variants</div>
-        </div>
-
-        {/* Finished Units */}
-        <div className="bg-white border border-slate-200 rounded-lg p-3.5 shadow-sm">
-          <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Total Units</div>
-          <div className="text-xl font-bold text-slate-800 mt-1">
-            {groupSummary.totalFinishedUnits.toLocaleString()}
+        {/* Total Production Budget Required */}
+        <div className="bg-gradient-to-br from-sky-50 to-blue-50 border-2 border-sky-300 rounded-lg p-3.5 shadow-xs col-span-2 md:col-span-1 lg:col-span-2">
+          <div className="text-[11px] font-bold uppercase tracking-wider text-sky-800 flex items-center justify-between">
+            <span>Total Group Production Budget</span>
+            <TrendingUp className="w-4 h-4 text-sky-600" />
           </div>
-          <div className="text-[10px] text-slate-400 mt-0.5">Finished output sum</div>
-        </div>
-
-        {/* Raw Materials */}
-        <div className="bg-white border border-slate-200 rounded-lg p-3.5 shadow-sm">
-          <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Raw Materials</div>
-          <div className="text-sm font-bold text-slate-800 mt-1 truncate" title={formatCurrencyValue(groupSummary.totalRawMaterialsCost, store.currency)}>
-            {formatCurrencyValue(groupSummary.totalRawMaterialsCost, store.currency)}
+          <div className="text-2xl font-black text-slate-900 mt-1 truncate" title={formatCurrencyValue(groupSummary.totalProductionCost, store.currency)}>
+            {formatCurrencyValue(groupSummary.totalProductionCost, store.currency)}
           </div>
-          <div className="text-[10px] text-slate-400 mt-0.5">Ingredients & materials</div>
-        </div>
-
-        {/* Packaging */}
-        <div className="bg-white border border-slate-200 rounded-lg p-3.5 shadow-sm">
-          <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Packaging</div>
-          <div className="text-sm font-bold text-slate-800 mt-1 truncate" title={formatCurrencyValue(groupSummary.totalPackagingCost, store.currency)}>
-            {formatCurrencyValue(groupSummary.totalPackagingCost, store.currency)}
+          <div className="text-[11px] text-sky-700 font-medium mt-0.5">
+            Total budget required for {groupSummary.totalFinishedUnits.toLocaleString()} units across group
           </div>
-          <div className="text-[10px] text-slate-400 mt-0.5">Pouch, box, labels</div>
-        </div>
-
-        {/* Labor & Overhead */}
-        <div className="bg-white border border-slate-200 rounded-lg p-3.5 shadow-sm">
-          <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Labor & Overhead</div>
-          <div className="text-sm font-bold text-slate-800 mt-1 truncate" title={formatCurrencyValue(groupSummary.totalLaborCost + groupSummary.totalOverheadCost, store.currency)}>
-            {formatCurrencyValue(groupSummary.totalLaborCost + groupSummary.totalOverheadCost, store.currency)}
-          </div>
-          <div className="text-[10px] text-slate-400 mt-0.5">Processes & operations</div>
         </div>
 
         {/* Weighted Average HPP */}
-        <div className="bg-sky-50 border border-sky-200 rounded-lg p-3.5 shadow-sm">
-          <div className="text-[11px] font-bold uppercase tracking-wider text-sky-700 flex items-center justify-between">
-            <span>Weighted HPP</span>
-            <TrendingUp className="w-3.5 h-3.5" />
+        <div className="bg-white border border-slate-200 rounded-lg p-3.5 shadow-sm">
+          <div className="text-[11px] font-bold uppercase tracking-wider text-slate-600">
+            Weighted Avg HPP
           </div>
-          <div className="text-base font-bold text-sky-900 mt-1 truncate" title={formatCurrencyValue(groupSummary.weightedAverageHpp, store.currency)}>
+          <div className="text-lg font-bold text-sky-800 mt-1 truncate" title={formatCurrencyValue(groupSummary.weightedAverageHpp, store.currency)}>
             {formatCurrencyValue(groupSummary.weightedAverageHpp, store.currency)}
           </div>
-          <div className="text-[10px] text-sky-700 font-medium mt-0.5">Per finished unit</div>
+          <div className="text-[10px] text-slate-400 mt-0.5">Per finished unit average</div>
+        </div>
+
+        {/* Total Products */}
+        <div className="bg-white border border-slate-200 rounded-lg p-3.5 shadow-sm">
+          <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Products in Group</div>
+          <div className="text-lg font-bold text-slate-800 mt-1">{groupSummary.productCount} products</div>
+          <div className="text-[10px] text-slate-400 mt-0.5">{variantSummaries.length} active variants</div>
+        </div>
+
+        {/* Raw Materials Total */}
+        <div className="bg-white border border-slate-200 rounded-lg p-3.5 shadow-sm">
+          <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Raw Materials</div>
+          <div className="text-sm font-bold text-slate-800 mt-1 truncate" title={formatCurrencyValue(groupSummary.totalRawMaterialsCost, store.currency)}>
+            {formatCurrencyValue(groupSummary.totalRawMaterialsCost, store.currency)}
+          </div>
+          <div className="text-[10px] text-slate-400 mt-0.5">Ingredients across group</div>
+        </div>
+
+        {/* Packaging Total */}
+        <div className="bg-white border border-slate-200 rounded-lg p-3.5 shadow-sm">
+          <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Packaging Total</div>
+          <div className="text-sm font-bold text-slate-800 mt-1 truncate" title={formatCurrencyValue(groupSummary.totalPackagingCost, store.currency)}>
+            {formatCurrencyValue(groupSummary.totalPackagingCost, store.currency)}
+          </div>
+          <div className="text-[10px] text-slate-400 mt-0.5">Pouches, bottles, boxes</div>
         </div>
       </div>
 
@@ -235,24 +243,24 @@ export const GroupDetailView: React.FC<GroupDetailViewProps> = ({
           <div className="flex items-center gap-2">
             <Layers className="w-4 h-4 text-slate-500" />
             <h2 className="text-xs font-bold uppercase tracking-wider text-slate-700">
-              Products in this Group
+              Individual Product Costing in this Group
             </h2>
           </div>
           <span className="text-xs text-slate-400">
-            {variantSummaries.length} variant calculations
+            {variantSummaries.length} product calculations
           </span>
         </div>
 
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
             <thead>
-              <tr className="bg-slate-50 text-slate-500 border-b border-slate-200 font-medium">
-                <th className="py-2.5 px-3">Product</th>
-                <th className="py-2.5 px-3">Variant</th>
-                <th className="py-2.5 px-3">Size / Measure</th>
-                <th className="py-2.5 px-3 text-right">Quantity</th>
-                <th className="py-2.5 px-3 text-right">HPP / Unit</th>
-                <th className="py-2.5 px-3 text-right">Total Production Cost</th>
+              <tr className="bg-slate-50 text-slate-600 border-b border-slate-200 font-semibold">
+                <th className="py-2.5 px-3">Product Name & SKU</th>
+                <th className="py-2.5 px-3">Package / Variant</th>
+                <th className="py-2.5 px-3">Net Size</th>
+                <th className="py-2.5 px-3 text-right">Batch Quantity</th>
+                <th className="py-2.5 px-3 text-right">HPP per Product</th>
+                <th className="py-2.5 px-3 text-right">Total Product Budget</th>
                 <th className="py-2.5 px-3 text-center">Status</th>
                 <th className="py-2.5 px-3 text-right">Action</th>
               </tr>

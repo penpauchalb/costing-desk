@@ -7,6 +7,13 @@ export interface CurrencyConfig {
   decimalPlaces: number;
 }
 
+export interface CustomCategory {
+  id: string;
+  name: string;
+  color?: string; // hex color or badge class
+  createdAt: string;
+}
+
 export type CostComponentCategory =
   | 'raw_materials'
   | 'ingredients'
@@ -23,6 +30,7 @@ export type CostStatus = 'confirmed' | 'pending' | 'blank';
 export interface ProductGroup {
   id: string;
   name: string;
+  category?: string;
   description?: string;
   orderIndex: number;
   createdAt: string;
@@ -48,9 +56,19 @@ export interface BomComponent {
   name: string;
   category: CostComponentCategory;
   materialId?: string | null; // linked to MasterMaterial if any
-  quantityRequired: number; // consumption per finished unit
+
+  // Simplified business fields
+  usagePerProduct?: number; // e.g. 250 (grams) or 1 (pcs)
+  usageUnit?: string; // e.g. 'gram', 'pcs', 'ml'
+  purchasePrice?: number; // e.g. 29000 (per kg) or 5500 (per pcs)
+  purchaseUnit?: string; // e.g. 'kg', 'pcs', 'liter'
+  conversionFactor?: number; // e.g. 1000 for kg->g
+  customPackSize?: number; // for box/pack conversions (e.g. 50 pcs per box)
+
+  // Backward compatibility fields
+  quantityRequired: number; // fallback for legacy items
   unit: string;
-  unitPrice: number; // cost per consumption unit
+  unitPrice: number;
   costBasis: 'per_finished_unit' | 'per_batch';
   status: CostStatus;
   notes?: string;
@@ -180,6 +198,10 @@ export interface CalculatedCostSummary {
   laborTotal: number;
   overheadTotal: number;
   otherExpensesTotal: number;
+  rawMaterialsCostPerUnit: number;
+  packagingCostPerUnit: number;
+  laborCostPerUnit: number;
+  overheadCostPerUnit: number;
   totalProductionCost: number;
   unitHpp: number;
   unitHppExcludingIndirect: number;
@@ -194,6 +216,7 @@ export interface CalculatedCostSummary {
 export interface GroupSummary {
   groupId: string;
   groupName: string;
+  category?: string;
   productCount: number;
   totalFinishedUnits: number;
   totalRawMaterialsCost: number;
